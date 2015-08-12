@@ -156,7 +156,7 @@ def iterate_collection_and_make_entries(cid,parent_title):
 	global root,sim_data,soundslice_data,counter,completed_tunes,update
 	collection_dir_path = root + cid
 	xml_data = sort_names(filter(lambda x:x.endswith('.xml'),os.listdir(collection_dir_path+"/{0}_xml/".format(cid))))
-	for i,tune_xml in enumerate(xml_data[482:483]):
+	for i,tune_xml in enumerate(xml_data[5:10]):
 		data = converter.parse(collection_dir_path+"/{0}_xml/{1}".format(cid,tune_xml))
 		data.metadata.title = data.metadata.title.replace("\I\\","").replace("\\i\\","")
 		if len(data.parts[0].flat.notes) != 0:
@@ -167,7 +167,7 @@ def iterate_collection_and_make_entries(cid,parent_title):
 			av_note_dur = duration.Duration(fe.extract().vector[0]).type		
 			breathnachCode,breathnachCodeDisplay = make_breathnach_code(data,keySig,timeSig)				
 			make_serial_code(data,keySig,timeSig)
-			quit()
+			# quit()
 root = '/users/itma/documents/port_music_files/port_collection_assets/'
 
 with open('/users/itma/documents/port_music_files/collection_metadata_sorted.json','r') as f:
@@ -178,6 +178,6 @@ collections = [x for x  in sorted(collections_metadata,key=lambda x:x['itma_pub_
 flag = False
 
 for item in collections:
-	if item['itma_collection_id'] != "bunting_vol_3" and item['itma_collection_id'] == 'pw_joyce_old_irish_folk_music':
+	if item['itma_collection_id'] != "bunting_vol_3" and item['itma_collection_id'] == 'goodman_vol_1':
 		iterate_collection_and_make_entries(item['itma_collection_id'],item['short_title'])
 		# quit()
