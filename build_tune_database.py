@@ -49,9 +49,9 @@ def iterate_collection_and_make_entries(cid,parent_title):
 	tunes_in_collection = len(xml_data)
 	print cid
 	for i,tune_xml in enumerate(xml_data):
-		if counter < 2225:
-			counter += 1
-		else:
+		# if counter < 2225:
+			# counter += 1
+		# else:
 			if not tune_xml in completed_tunes or UPDATE == True:
 				itma_id = counter
 				tune_id = tune_xml.split('.')[0]
