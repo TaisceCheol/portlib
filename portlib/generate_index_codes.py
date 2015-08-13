@@ -117,11 +117,11 @@ def make_parsons_code(data):
 def get_first_two_measures(data):
 	mcount = 0
 	s = stream.Stream()
-	for m in data.parts[0].getElementsByClass('Measure'):
+	parts = sorted(data.parts,key=lambda x:float(x.flat.notes[0].offset))
+	for m in parts[0].getElementsByClass('Measure'):
 		# ignore anacrusis
 		if float(str(m.barDurationProportion())) >= 1:
 			for i,n in enumerate(m.flat.notesAndRests):
-				# print n.pitch
 				if not n.isGrace:
 					s.append(n)
 			mcount +=1
@@ -212,6 +212,7 @@ def make_breathnach_code(data,keySig,timeSig):
 	print data.metadata.title,keySig,final,timeSig
 
 	analStream,isSong = get_first_two_measures(data)
+	print analStream,isSong
 	if isSong != True:
 		lastP = None
 		for i in range(sliceIter):

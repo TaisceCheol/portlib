@@ -240,6 +240,7 @@ def iterate_collection_and_make_entries(cid,parent_title):
 					}
 				# pretty_print(tune)
 				counter += 1
+				print itma_id
 				collection.update({'itma_id':itma_id},{"$set": {"metadata":tune['metadata'],"title":tune["title"],"urls":tune['urls']}})
 				# collection.insert(tune)
 				if UPDATE != True:

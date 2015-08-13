@@ -467,10 +467,12 @@ def process(path):
 			ly_string = conv.lySequentialMusicFromStream(data).stringOutput()
 		except:
 			ly_string = ""
-		measures = data.parts[0].getElementsByClass('Measure')
-		if len(data.parts) > 1 and data.parts[0].measure(1).duration != data.parts[1].measure(1).duration:
+		parts = sorted(data.parts,key=lambda x:float(x.flat.notes[0].offset))
+		remove_dodgy_spacer_rests(parts)
+		measures = parts[0].getElementsByClass('Measure')
+		if len(parts) > 1 and parts[0].measure(1).duration != parts[1].measure(1).duration:
 			partial = True
-			timeSig = data.parts[0].measure(1).timeSignature
+			timeSig = parts[0].measure(1).timeSignature
 		else:
 			for item in measures:
 				try:
@@ -481,6 +483,7 @@ def process(path):
 			try:
 				if measures[0].duration != timeSig.barDuration:
 					d = measures[0].duration
+					print d 
 					partial = "\partial %s" % conv.lyMultipliedDurationFromDuration(d)
 				else:
 					partial = None
@@ -495,8 +498,8 @@ def process(path):
 						partial = partial_re.group(0)
 					else:
 						partial = None
-		parts = []
-		# for i in range(len(data.parts)):
+		newparts = []
+		# for i in range(len(parts)):
 		# only use top staff
 		for i in range(1):
 			part_incipit = []
@@ -506,17 +509,16 @@ def process(path):
 				endPoint = 2
 			# will search for the position of first notes... rather than starting with rests
 			if partial != None:
-				part_incipit,partial = get_note_incipit(data.parts[i],endPoint,partial)
+				part_incipit,partial = get_note_incipit(parts[i],endPoint,partial)
 			else:
-				print 'fuck'
-				part_incipit = get_note_incipit(data.parts[i],endPoint,partial)
+				part_incipit = get_note_incipit(parts[i],endPoint,partial)
 			# if partial != None:
 			# 	part_incipit[1].timeSignature = timeSig 
 			# else:
 			part_incipit[0].timeSignature = timeSig 
-			parts.append(part_incipit)
+			newparts.append(part_incipit)
 		staves = []
-		for part_index,p in enumerate(parts):
+		for part_index,p in enumerate(newparts):
 			ly_measures = []
 			# don't waste space with completely empty staves
 			# only use top staff for incipits
@@ -537,6 +539,25 @@ def process(path):
 		write_ly(score,path)
 		return None
 
+def remove_dodgy_spacer_rests(partlist):
+	for part in partlist:
+		timeSig =  part.flat.getElementsByClass('TimeSignature')[0]
+		for m in part.getElementsByClass('Measure'):
+			n = stream.Stream()
+			r = stream.Stream()
+			for note in m.flat.notesAndRests:
+				if note.isNote:
+					n.append(note)		
+				else:
+					r.append(note)
+			if n.notes.duration == timeSig.barDuration:
+				if len(r) > 0:
+					if r[0].offset == 0 and len(r) == 1:
+						m.remove(r[0],shiftOffsets=True)
+			elif r.duration == timeSig.barDuration and n.notes.duration > 0:
+				if r[0].offset == 0 and len(r) == 1:
+					m.remove(r[0],shiftOffsets=True)
+
 def make_incipit_ly(source):
 	global path,outdir 
 	path = 'port_collection_assets/{0}'.format(source)
@@ -548,6 +569,6 @@ def make_incipit_ly(source):
 	return None
 
 if __name__ == '__main__':
-	make_incipit_ly('bunting_vol_2')	
+	make_incipit_ly('roche_vol_1')	
 
 

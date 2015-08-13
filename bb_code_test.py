@@ -156,11 +156,11 @@ def iterate_collection_and_make_entries(cid,parent_title):
 	global root,sim_data,soundslice_data,counter,completed_tunes,update
 	collection_dir_path = root + cid
 	xml_data = sort_names(filter(lambda x:x.endswith('.xml'),os.listdir(collection_dir_path+"/{0}_xml/".format(cid))))
-	for i,tune_xml in enumerate(xml_data[5:10]):
+	for i,tune_xml in enumerate(xml_data[41:42]):
 		data = converter.parse(collection_dir_path+"/{0}_xml/{1}".format(cid,tune_xml))
 		data.metadata.title = data.metadata.title.replace("\I\\","").replace("\\i\\","")
 		if len(data.parts[0].flat.notes) != 0:
-			print i
+			print
 			keySig = analysis.discrete.analyzeStream(data, 'key')
 			timeSig = str(data.parts[0].getElementsByClass('Measure')[0].timeSignature.ratioString)
 			fe = features.native.MostCommonNoteQuarterLength(data)
@@ -178,6 +178,6 @@ collections = [x for x  in sorted(collections_metadata,key=lambda x:x['itma_pub_
 flag = False
 
 for item in collections:
-	if item['itma_collection_id'] != "bunting_vol_3" and item['itma_collection_id'] == 'goodman_vol_1':
+	if item['itma_collection_id'] != "bunting_vol_3" and item['itma_collection_id'] == 'roche_vol_1':
 		iterate_collection_and_make_entries(item['itma_collection_id'],item['short_title'])
 		# quit()
