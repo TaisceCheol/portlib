@@ -467,7 +467,10 @@ def process(path):
 			ly_string = conv.lySequentialMusicFromStream(data).stringOutput()
 		except:
 			ly_string = ""
-		parts = sorted(data.parts,key=lambda x:float(x.flat.notes[0].offset))
+		if len(data.parts) <= 2:
+			parts = sorted(data.parts,key=lambda x:float(x.flat.notes[0].offset))
+		else:
+			parts = data.parts
 		remove_dodgy_spacer_rests(parts)
 		measures = parts[0].getElementsByClass('Measure')
 		if len(parts) > 1 and parts[0].measure(1).duration != parts[1].measure(1).duration:
@@ -569,6 +572,6 @@ def make_incipit_ly(source):
 	return None
 
 if __name__ == '__main__':
-	make_incipit_ly('roche_vol_1')	
+	make_incipit_ly('bunting_vol_2')	
 
 
