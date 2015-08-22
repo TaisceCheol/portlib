@@ -114,22 +114,65 @@ def make_parsons_code(data):
 	except:
 		return ""
 
+def not_rest_anacrusis(measure,number):
+	if number == 0:
+		if len(measure.flat.getElementsByClass('Rest')) > 0:
+			x = stream.Measure(measure.flat.getElementsByClass(['Note','Chord'])).quantize([4], processOffsets=True, processDurations=True)
+			# if notes are less than 0.25 of bar then it is a rest anacrusis
+			if len(measure.flat.getElementsByClass(['Note','Chord'])) == 0:
+				return False
+			elif x.bestTimeSignature().barDuration.quarterLength < (measure.flat.barDuration.quarterLength * 0.35):
+				return False
+	return True
+
+
+
 def get_first_two_measures(data):
 	mcount = 0
 	s = stream.Stream()
-	parts = sorted(data.parts,key=lambda x:float(x.flat.notes[0].offset))
-	for m in parts[0].getElementsByClass('Measure'):
+	remove_dodgy_spacer_rests(data.parts)
+	if len(data.parts[-1].flat.notes) != 0:
+		parts = sorted(data.parts,key=lambda x:float(x.flat.notes[0].offset))
+		parts = sorted(parts,key=lambda y: max([x.midi for x in y.flat.notes[0].pitches]),reverse=True)
+	else:
+		parts = data.parts
+	for mn,m in enumerate(parts[0].getElementsByClass('Measure')):
 		# ignore anacrusis
-		if float(str(m.barDurationProportion())) >= 1:
-			for i,n in enumerate(m.flat.notesAndRests):
-				if not n.isGrace:
-					s.append(n)
+		if float(str(m.barDurationProportion())) >= 1 and not_rest_anacrusis(m,mn):
+			if len(m.voices) == 0:
+				for i,n in enumerate(m.flat.notesAndRests):
+					if not n.isGrace:
+						s.append(n)
+			else:
+				for i,n in enumerate(m.voices[0].flat.notesAndRests):
+					if not n.isGrace:
+						s.append(n)
 			mcount +=1
 		if mcount == 2:break
+
 	isSong = False
 	if len(s.notes) == 0:
 		isSong = True 
 	return s,isSong
+
+def remove_dodgy_spacer_rests(partlist):
+	for part in partlist:
+		timeSig =  part.flat.getElementsByClass('TimeSignature')[0]
+		for m in part.getElementsByClass('Measure'):
+			n = stream.Stream()
+			r = stream.Stream()
+			for note in m.flat.notesAndRests:
+				if note.isNote:
+					n.append(note)		
+				else:
+					r.append(note)
+			if n.notes.duration == timeSig.barDuration:
+				if len(r) > 0:
+					if r[0].offset == 0 and len(r) == 1:
+						m.remove(r[0],shiftOffsets=True)
+			elif r.duration == timeSig.barDuration and n.notes.duration > 0:
+				if r[0].offset == 0 and len(r) == 1:
+					m.remove(r[0],shiftOffsets=True)
 
 def make_serial_code(data,keySig,timeSig):
 	notes = []
@@ -177,11 +220,16 @@ def get_accent_values(timeSig):
 	return sliceAmt,sliceIter
 
 def check_key_v_last_note(data,keySig,timeSig):
-	lastMeasureIndex = -1
+	lastMeasureIndex = -1	
 	last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex]
+	if len(last.voices) != 0:
+		last = last.voices[0]
 	while len(last.notes) == 0:
 		lastMeasureIndex -= 1
-		last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex]
+		if len(data.parts[0].getElementsByClass('Measure')[lastMeasureIndex].voices) != 0:
+			last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex].voices[0]
+		else:
+			last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex]
 	s = stream.Stream()
 	for item in last.notes:
 		s.append(item)
@@ -193,12 +241,25 @@ def check_key_v_last_note(data,keySig,timeSig):
 		final = final.pitchClass
 	relMajor = keySig.getRelativeMajor()
 	relMinor = keySig.getRelativeMinor()
-	if final == keySig.tonic.pitchClass:
-		return keySig 
+
+	printed_key = key.Key(str(data.parts[0].getElementsByClass('Measure')[0].getElementsByClass('KeySignature')[0].pitchAndMode[0]))
+	printed_key_minor = printed_key.getRelativeMinor()
+
+	# lastChord = data.chordify().flat[-1]
+	# print lastChord
+	# print final,printed_key,printed_key_minor,keySig
+	# quit()
+
+	if final == printed_key.tonic.pitchClass:
+		return printed_key 
+	elif final == printed_key_minor.tonic.pitchClass:
+		return printed_key_minor 		
+	elif final == keySig.tonic.pitchClass:
+		return keySig 		
 	elif final == relMajor.tonic.pitchClass:
 		return relMajor 
 	elif final == relMinor.tonic.pitchClass:
-		return relMinor 
+		return relMinor 		
 	else:
 		return keySig
 
@@ -212,9 +273,10 @@ def make_breathnach_code(data,keySig,timeSig):
 	print data.metadata.title,keySig,final,timeSig
 
 	analStream,isSong = get_first_two_measures(data)
-	print analStream,isSong
+
+	lastP = None
+
 	if isSong != True:
-		lastP = None
 		for i in range(sliceIter):
 			n = analStream.getElementAtOrBefore(i*sliceAmt)
 			if n.isChord:
@@ -231,8 +293,9 @@ def make_breathnach_code(data,keySig,timeSig):
 						p = n.pitches[-1]
 					elif not n.isRest:
 						p = n.pitch
-			lastP = p
-			code.append(str(solfege_map[final.solfeg(p,chromatic=False)]))
+			if 'p' in locals():
+				lastP = p
+				code.append(str(solfege_map[final.solfeg(p,chromatic=False)]))
 			if (i+1) == sliceIter/2.0:
 				code.append(' • ')
 	else:

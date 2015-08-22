@@ -161,7 +161,8 @@ def iterate_collection_and_make_entries(cid,parent_title):
 						fe = features.native.MostCommonNoteQuarterLength(data)
 						av_note_dur = duration.Duration(fe.extract().vector[0]).type
 					except:
-						av_note_dur = 'Unavailable'
+						# fallback
+						av_note_dur = 'eighth'		
 					# most common pitch feature
 					fe = analysis.discrete.Ambitus()
 					ambitus = fe.getPitchSpan(data)

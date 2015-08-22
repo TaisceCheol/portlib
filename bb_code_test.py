@@ -156,18 +156,21 @@ def iterate_collection_and_make_entries(cid,parent_title):
 	global root,sim_data,soundslice_data,counter,completed_tunes,update
 	collection_dir_path = root + cid
 	xml_data = sort_names(filter(lambda x:x.endswith('.xml'),os.listdir(collection_dir_path+"/{0}_xml/".format(cid))))
-	for i,tune_xml in enumerate(xml_data[41:42]):
+	for i,tune_xml in enumerate(xml_data):
 		data = converter.parse(collection_dir_path+"/{0}_xml/{1}".format(cid,tune_xml))
 		data.metadata.title = data.metadata.title.replace("\I\\","").replace("\\i\\","")
+		print data.metadata.title.replace("\n\\"," | ")
 		if len(data.parts[0].flat.notes) != 0:
-			print
+			print i
 			keySig = analysis.discrete.analyzeStream(data, 'key')
 			timeSig = str(data.parts[0].getElementsByClass('Measure')[0].timeSignature.ratioString)
-			fe = features.native.MostCommonNoteQuarterLength(data)
-			av_note_dur = duration.Duration(fe.extract().vector[0]).type		
+			try:
+				fe = features.native.MostCommonNoteQuarterLength(data)
+				av_note_dur = duration.Duration(fe.extract().vector[0]).type		
+			except:
+				av_note_dur = 'eighth'
 			breathnachCode,breathnachCodeDisplay = make_breathnach_code(data,keySig,timeSig)				
 			make_serial_code(data,keySig,timeSig)
-			# quit()
 root = '/users/itma/documents/port_music_files/port_collection_assets/'
 
 with open('/users/itma/documents/port_music_files/collection_metadata_sorted.json','r') as f:
@@ -177,7 +180,10 @@ collections = [x for x  in sorted(collections_metadata,key=lambda x:x['itma_pub_
 
 flag = False
 
-for item in collections:
-	if item['itma_collection_id'] != "bunting_vol_3" and item['itma_collection_id'] == 'roche_vol_1':
+
+for i,item in enumerate(collections):
+	if item['itma_collection_id'] != 'bunting_vol_3' and i == 38:
+		# print i
+		print item['itma_collection_id'],i
 		iterate_collection_and_make_entries(item['itma_collection_id'],item['short_title'])
-		# quit()
+		

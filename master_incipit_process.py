@@ -25,10 +25,10 @@ root = 'port_collection_assets/'
 collections = filter(lambda x:not x.startswith('.'),os.listdir(root))
 
 for item in collections:
-	if item == 'goodman_vol_2':
-		make_incipit_ly(item)
-		make_incipit_png(item)
-		make_incipit_svg(item)
+	# if item == 'goodman_vol_2':
+	make_incipit_ly(item)
+	make_incipit_png(item)
+	make_incipit_svg(item)
 		# make_midi_analysis(item)
 		# make_mp3_from_midi(item)
 		# rename_files(item)
