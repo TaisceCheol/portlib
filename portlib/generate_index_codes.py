@@ -4,6 +4,7 @@ from collections import OrderedDict
 from music21 import *
 from numpy import diff
 from random import *
+from itertools import tee,izip
 
 def make_abc_code(data,timeSig):
 	mcount = 0	
@@ -125,7 +126,43 @@ def not_rest_anacrusis(measure,number):
 				return False
 	return True
 
+def get_all_measures(data):
+	mcount = 0
+	s = stream.Stream()
+	remove_dodgy_spacer_rests(data.parts)
+	if len(data.parts[-1].flat.notes) != 0:
+		parts = sorted(data.parts,key=lambda x:float(x.flat.notes[0].offset))
+		parts = sorted(parts,key=lambda y: max([x.midi for x in y.flat.notes[0].pitches]),reverse=True)
+	else:
+		parts = data.parts
+	for mn,m in enumerate(parts[0].getElementsByClass('Measure')):
+		# ignore anacrusis
+		if float(str(m.barDurationProportion())) >= 1 and not_rest_anacrusis(m,mn):
+			if len(m.voices) == 0:
+				for i,n in enumerate(m.flat.notesAndRests):
+					if not n.isGrace:
+						s.append(n)
+			else:
+				for i,n in enumerate(m.voices[0].flat.notesAndRests):
+					if not n.isGrace:
+						s.append(n)
+	isSong = False
+	if len(s.notes) == 0:
+		isSong = True 
+	return s,isSong
 
+def get_all_as_measures(data):
+	mcount = 0
+	measures = []
+	remove_dodgy_spacer_rests(data.parts)
+	if len(data.parts[-1].flat.notes) != 0:
+		parts = sorted(data.parts,key=lambda x:float(x.flat.notes[0].offset))
+		parts = sorted(parts,key=lambda y: max([x.midi for x in y.flat.notes[0].pitches]),reverse=True)
+	else:
+		parts = data.parts
+	for mn,m in enumerate(parts[0].getElementsByClass('Measure')):
+		measures.append(m)
+	return measures
 
 def get_first_two_measures(data):
 	mcount = 0
@@ -176,7 +213,7 @@ def remove_dodgy_spacer_rests(partlist):
 
 def make_serial_code(data,keySig,timeSig):
 	notes = []
-	final = check_key_v_last_note(data,keySig,timeSig)
+	final = ascertain_tonic(data,keySig,timeSig)
 	solfege_map = {'do':1,'re':2,'mi':3,'fa':4,'sol':5,'la':6,'ti':7,'r':""}
 	notes,isSong = get_first_two_measures(data)
 	if isSong:
@@ -219,58 +256,205 @@ def get_accent_values(timeSig):
 		sliceIter = 8
 	return sliceAmt,sliceIter
 
-def check_key_v_last_note(data,keySig,timeSig):
+def pc_at_first_beat(data):
+	pcs = []
+	for m in data.parts[0].getElementsByClass('Measure'):
+		notes = [x.pitchClass for x in m.notes if not x.isGrace]
+		if len(notes):
+			pcs.append(notes[0])
+	return pcs 
+
+def most_common_el(lst):
+    return max(set(lst), key=lst.count)
+
+def most_common_downbeat(data,timeSig):
+	pcs = pc_at_first_beat(data)
+	return most_common_el(pcs)
+
+def ascertain_tonic(data,keySig,timeSig):
 	lastMeasureIndex = -1	
 	last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex]
+	hasDCRepeat = False
+
+	if len(last.getElementsByClass('RepeatMark')) != 0:
+		try:
+			if last.getElementsByClass('RepeatMark')[0].getText() == 'D.C.':
+				last = data.parts[0].getElementsByClass('Measure')[0]
+				print last.barDurationProportion(),'booboo'
+				lastMeasureIndex = 0
+				hasDCRepeat = True
+		except:
+			pass
+	
 	if len(last.voices) != 0:
 		last = last.voices[0]
+
 	while len(last.notes) == 0:
 		lastMeasureIndex -= 1
 		if len(data.parts[0].getElementsByClass('Measure')[lastMeasureIndex].voices) != 0:
 			last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex].voices[0]
 		else:
 			last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex]
+
 	s = stream.Stream()
 	for item in last.notes:
 		s.append(item)
 	sliceAmt,sliceIter = get_accent_values(timeSig)
-	final = s.getElementAtOrBefore(sliceIter*sliceAmt)
+
+	if hasDCRepeat == False:
+		final = s.getElementAtOrBefore(sliceIter*sliceAmt)
+	else:
+		final = s.getElementAtOrBefore(0)
+
 	if final.isChord:
 		final = final.pitches[-1].pitchClass
 	else:
 		final = final.pitchClass
-	relMajor = keySig.getRelativeMajor()
-	relMinor = keySig.getRelativeMinor()
 
-	printed_key = key.Key(str(data.parts[0].getElementsByClass('Measure')[0].getElementsByClass('KeySignature')[0].pitchAndMode[0]))
-	printed_key_minor = printed_key.getRelativeMinor()
+	firstBarKey = analysis.discrete.analyzeStream(data.parts[0].getElementsByClass('Measure'),'key')
+	lastBarKey = analysis.discrete.analyzeStream(last.notes, 'key')
 
-	# lastChord = data.chordify().flat[-1]
-	# print lastChord
-	# print final,printed_key,printed_key_minor,keySig
-	# quit()
+	fe = features.jSymbolic.MostCommonPitchClassFeature(data)
+	mcp = fe.extract().vector[0]
+	most_common_note_beat = most_common_downbeat(data,timeSig)
+	notes = [x.pitch.pitchClass for x in data.parts[0].flat.notes]
+	most_common_note = most_common_el(notes)
+	most_common_note_pc = notes.count(most_common_note) / float(len(notes))
+	leading_note,leading_note_freq = most_common_leading_note(data,timeSig)
+	parsed_tonic,card = parse_bb_pitches(final,most_common_note,most_common_note_beat,lastBarKey)
+	resting_note = get_resting_note(data,final)
 
-	if final == printed_key.tonic.pitchClass:
-		return printed_key 
-	elif final == printed_key_minor.tonic.pitchClass:
-		return printed_key_minor 		
-	elif final == keySig.tonic.pitchClass:
-		return keySig 		
-	elif final == relMajor.tonic.pitchClass:
-		return relMajor 
-	elif final == relMinor.tonic.pitchClass:
-		return relMinor 		
+	print final,leading_note,resting_note,parsed_tonic
+
+	if resting_note == leading_note and final != note.Note(parsed_tonic).pitchClass:
+		tonic = resting_note
+	elif resting_note == leading_note:
+		tonic = resting_note
+	elif note.Note(resting_note).pitchClass == final:
+		tonic = resting_note
+	elif key.Key(note.Note(final).pitch.name,mode='minor').getRelativeMajor().tonic.name == leading_note:
+		tonic = note.Note(final).pitch.name
+	elif key.Key(note.Note(final).pitch.name,mode='major').getRelativeMinor().tonic.name == leading_note:
+		tonic = note.Note(final).pitch.name		
+	elif card == 1:
+		tonic = parsed_tonic
+	elif leading_note_freq >= 3:
+		tonic = leading_note
+	elif leading_note_freq == card:
+		tonic = parsed_tonic			
+	elif final == note.Note(leading_note).pitchClass:
+		tonic = leading_note	
 	else:
-		return keySig
+		tonic = parsed_tonic
+	# BB preference?
+	# if tonic == 'C' or tonic == 'F':
+		# tonic  = 'G'
+	# print tonic
+
+	# needs modal mapping here
+	# i.e if suggests F but there's no accidentals then G dorian
+
+	return key.Key(tonic)
+
+def get_resting_note(data,final):
+	measures = get_all_as_measures(data)
+	notes = [m.flat.notesAndRests for m in measures]
+	note_dur_store = {}
+	avg_dur = features.native.MostCommonNoteQuarterLength(data).extract().vector[0]
+	for m in notes:
+		for i,n in enumerate(m):
+			if not n.isRest and n.duration.quarterLength > avg_dur:
+				weight = 1
+				if i+1 < len(m) and m[i+1].isRest:
+					weight += 1
+				if len(set(m.pitches)) == 1:
+					weight += 2
+				if m == notes[-1] and n == m.notes[-1]:
+					weight += 3
+				if n.name in note_dur_store.keys():
+					note_dur_store[n.name] += weight
+				else:
+					note_dur_store[n.name] = weight		
+	
+	sorted_values = [note_dur_store.values().index(i) for i in sorted(note_dur_store.values(),reverse=True)]
+	sorted_keys = [note_dur_store.keys()[i] for i in sorted_values]
+	# print note_dur_store
+	# if note.Note(final).name in sorted_keys[0:2]:
+		# return note.Note(final).name 
+	# else:
+	if len(sorted_keys) != 0:
+		return sorted_keys[0]
+	else:
+		return None
+	
+def pairwise(iterable):
+    out = []
+    for i,x in enumerate(iterable):
+    	if i+1 != len(iterable):
+    		out.append((x,iterable[i+1]))
+    return out
+
+def most_common_leading_note(data,timeSig):
+	leading_notes = {'C':(11,12),'D':(1,2),'E':(3,4),'F':(4,5),'G':(6,7),'A':(8,9),'B':(10,11)}
+	found_leading_notes = []
+	measures = get_all_as_measures(data)
+	notes = [m.flat.notes for m in measures]
+	pcs = []
+	for m in notes:
+		for n in m:
+			pcs.append(n)
+	for pair in pairwise(pcs):
+		pcs = (pair[0].pitch.pitchClass,pair[-1].pitch.pitchClass)
+		
+		if pcs in leading_notes.values() and pair[-1].offset == 0:
+			found_leading_notes.append(leading_notes.keys()[leading_notes.values().index(pcs)])
+	if len(found_leading_notes) > 0:
+		most_common = most_common_el(found_leading_notes)
+		return most_common,found_leading_notes.count(most_common)
+	else:
+		return None,None
+
+def cardinality(lst):
+	store = []
+	count = 0
+	for i in lst:
+		if i not in store:
+			count += 1
+			store.append(i)
+	return count
+
+def parse_bb_pitches(final,most_common_note,most_common_note_beat,lastBarKey):
+	weights = [2,7,4,9]
+	cleaned = []
+	for i in [final,most_common_note,most_common_note_beat]:
+		if i == 11:
+			cleaned.append(4)
+		else:
+			cleaned.append(i)
+	card = cardinality(cleaned)
+	if card == 1:
+		result = cleaned[0] 
+	elif card == 2:
+		if lastBarKey.mode == 'major':
+			result = most_common_el(cleaned)
+		else:
+			result = cleaned[0]
+	elif card == 3:
+		for i in weights:
+			if i in cleaned:
+				result = i 
+				break
+	return note.Note(result).name,card
 
 def make_breathnach_code(data,keySig,timeSig):
 	code = []
-	final = check_key_v_last_note(data,keySig,timeSig)
+	final = ascertain_tonic(data,keySig,timeSig)
+	# return "",""
 	solfege_map = {'do':1,'re':2,'mi':3,'fa':4,'sol':5,'la':6,'ti':7}
 	ts = data.parts[0].flat.getElementsByClass('TimeSignature')[0]
 	sliceAmt,sliceIter = get_accent_values(timeSig)
 
-	print data.metadata.title,keySig,final,timeSig
+	# print data.metadata.title,keySig,final,timeSig
 
 	analStream,isSong = get_first_two_measures(data)
 
@@ -325,5 +509,5 @@ def make_breathnach_code(data,keySig,timeSig):
 
 	display_code = "".join(code)
 	code = "".join(code).replace(' • ','')
-	print display_code,code
+	print display_code
 	return code,display_code
