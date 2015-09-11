@@ -271,40 +271,59 @@ def most_common_downbeat(data,timeSig):
 	pcs = pc_at_first_beat(data)
 	return most_common_el(pcs)
 
-def ascertain_tonic(data,keySig,timeSig):
-	lastMeasureIndex = -1	
-	last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex]
-	hasDCRepeat = False
-
-	if len(last.getElementsByClass('RepeatMark')) != 0:
-		try:
-			if last.getElementsByClass('RepeatMark')[0].getText() == 'D.C.':
-				last = data.parts[0].getElementsByClass('Measure')[0]
-				print last.barDurationProportion(),'booboo'
-				lastMeasureIndex = 0
-				hasDCRepeat = True
-		except:
-			pass
-	
+def get_dc_repeat(stream):
+	last = stream.getElementsByClass('Measure')[0]
+	lastMeasureIndex = 0
 	if len(last.voices) != 0:
 		last = last.voices[0]
 
 	while len(last.notes) == 0:
 		lastMeasureIndex -= 1
-		if len(data.parts[0].getElementsByClass('Measure')[lastMeasureIndex].voices) != 0:
-			last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex].voices[0]
+		if len(stream.getElementsByClass('Measure')[lastMeasureIndex].voices) != 0:
+			last = stream.getElementsByClass('Measure')[lastMeasureIndex].voices[0]
 		else:
-			last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex]
+			last = stream.getElementsByClass('Measure')[lastMeasureIndex]
+	return last.notes[0] 
 
-	s = stream.Stream()
-	for item in last.notes:
-		s.append(item)
-	sliceAmt,sliceIter = get_accent_values(timeSig)
+def get_last_note(data,timeSig):
+	repeats = {}
+	for item in data.flat.getElementsByClass('RepeatMark'):
+		text = item.getTextExpression().content
+		note = data.flat.notes.getElementAtOrBefore(item.offset)
+		repeats[text] = note 
 
-	if hasDCRepeat == False:
-		final = s.getElementAtOrBefore(sliceIter*sliceAmt)
+	if 'Fine' in repeats.keys():
+		last = repeats['Fine']
+		end_type = 'fine'
+	elif 'D.C.' in repeats.keys():
+		last = get_dc_repeat(data)
+		end_type = 'dc'
 	else:
-		final = s.getElementAtOrBefore(0)
+		sliceAmt,sliceIter = get_accent_values(timeSig)
+		last = data.flat.notes[-1]
+		while last.isGrace == True:
+			last = data.flat.notes.getElementAfterElement(last)
+		end_type = 'generic'
+	return last,end_type
+
+
+def chordal_analysis(st):
+	keys = []
+	for item in st.getElementsByClass('Measure'):
+		keyx = chord.Chord(set([x.pitchClass for x in item.flat.notes]))
+		keys.append(keyx.pitchedCommonName.split('-')[0])
+	mc = most_common_el(keys)
+	wt = float(keys.count(mc)) / len(keys)
+	return mc,wt
+
+def ascertain_tonic(data,keySig,timeSig):
+	lastMeasureIndex = -1	
+	last = data.parts[0].getElementsByClass('Measure')[lastMeasureIndex]
+	hasDCRepeat = False
+
+	final,end_type = get_last_note(data.parts[0],timeSig)
+
+	most_common_chord,chord_wt = chordal_analysis(data.parts[0])
 
 	if final.isChord:
 		final = final.pitches[-1].pitchClass
@@ -324,14 +343,23 @@ def ascertain_tonic(data,keySig,timeSig):
 	parsed_tonic,card = parse_bb_pitches(final,most_common_note,most_common_note_beat,lastBarKey)
 	resting_note = get_resting_note(data,final)
 
-	print final,leading_note,resting_note,parsed_tonic
+	print final,leading_note,resting_note,parsed_tonic,end_type,most_common_chord,chord_wt
 
-	if resting_note == leading_note and final != note.Note(parsed_tonic).pitchClass:
+	if chord_wt > 0.4 and not (note.Note(final).pitch.name == resting_note == resting_note == parsed_tonic):
+		print '::chordal_analysis'
+		tonic = most_common_chord
+	elif resting_note == leading_note and final != note.Note(parsed_tonic).pitchClass:
+		print '::A'
 		tonic = resting_note
 	elif resting_note == leading_note:
+		print '::B'		
 		tonic = resting_note
 	elif note.Note(resting_note).pitchClass == final:
+		print '::C'		
 		tonic = resting_note
+	elif end_type == 'fine':
+		print '::D'
+		tonic = note.Note(final).pitch.name	
 	elif key.Key(note.Note(final).pitch.name,mode='minor').getRelativeMajor().tonic.name == leading_note:
 		tonic = note.Note(final).pitch.name
 	elif key.Key(note.Note(final).pitch.name,mode='major').getRelativeMinor().tonic.name == leading_note:
@@ -349,7 +377,7 @@ def ascertain_tonic(data,keySig,timeSig):
 	# BB preference?
 	# if tonic == 'C' or tonic == 'F':
 		# tonic  = 'G'
-	# print tonic
+	print tonic
 
 	# needs modal mapping here
 	# i.e if suggests F but there's no accidentals then G dorian
@@ -509,5 +537,5 @@ def make_breathnach_code(data,keySig,timeSig):
 
 	display_code = "".join(code)
 	code = "".join(code).replace(' • ','')
-	print display_code
+	# print display_code
 	return code,display_code
