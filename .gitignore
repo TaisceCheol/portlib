@@ -1,2 +1,7 @@
 *.pyc
 .DS_Store
+collection_images/
+port-backups/
+port_collection_assets/
+port_image_assets/
+port_screencast.mp4
