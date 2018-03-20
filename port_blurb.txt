@@ -1,0 +1,9 @@
+Port is a new web application developed by the Irish Traditional Music Archive. It allows users to search, view and listen to our collections of notated music. 
+
+Port contains over 6000 tunes drawn from 41 historical collections which have been carefully set by staff at ITMA. 
+
+Using Port you can search for tunes by title, time-signature or musical motif. You can also browse individual tune collections or jump to a random tune.
+
+In addition, Port introduces the concept of ITMA numbers, which provide a unique identifier for printed traditional tunes. 
+
+In the near future Port will also enable tune similarity searching.

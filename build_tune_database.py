@@ -8,7 +8,8 @@ from random import *
 from portlib.generate_index_codes import *
 from portlib.utils import *
 
-ENV = 'production'
+# ENV = 'production'
+ENV = 'development'
 UPDATE = True
 
 completed_tunes = []
@@ -212,7 +213,7 @@ def iterate_collection_and_make_entries(cid,parent_title):
 					'index_in_collection':i,
 					'parent_collection_title':parent_title,
 					'tunes_in_parent_collection':tunes_in_collection,				
-					'similarity_scores':sim_data,
+					'similarity_scores':filter(lambda x:x['value'] > 0.5, sim_data),
 					'urls':{
 						'soundslice':map_soundslice_urls(tune_id,soundslice_data),
 						'pdf':"https://d1307vzs6glz9b.cloudfront.net/{0}/{0}_pdf/{1}.pdf".format(cid,tune_id),
@@ -240,14 +241,14 @@ def iterate_collection_and_make_entries(cid,parent_title):
 						"chromaticMotion":chromatic_motion,
 					}
 				}
-			# pretty_print(tune)
+			pretty_print(tune)
 			counter += 1
 			print itma_id
-			# collection.update({'itma_id':itma_id},{"$set": {"metadata":tune['metadata'],"title":tune["title"],"urls":tune['urls']}})
+			# collection.update({'itma_id':itma_id},{"$set": {"metadata":tune['metadata'],"similarity_scores":tune['similarity_scores']}})
 			collection.insert(tune)
-			if UPDATE != True:
-				with open("tune_database_log.txt",'a') as f:
-					f.write("%s \t %s\n" % (tune_xml,itma_id))
+			# if UPDATE != True:
+				# with open("tune_database_log.txt",'a') as f:
+					# f.write("%s \t %s\n" % (tune_xml,itma_id))
 	return None
 
 # read collection assets paths
@@ -258,6 +259,9 @@ with open('/users/itma/documents/port_music_files/collection_metadata_sorted.jso
 
 collections = [x for x  in sorted(collections_metadata,key=lambda x:x['itma_pub_order'])]
 
+for item in collections:
+	print item['short_title']
+
 #soundslice data
 with open('soundslice_data.json','r') as f:
 	soundslice_data = json.load(f)
@@ -265,7 +269,7 @@ with open('soundslice_data.json','r') as f:
 flag = False
 
 for item in collections:
-	if item['itma_collection_id'].find('bunting') == -1:
+	if item['itma_collection_id'].find('bunting_vol_3') == -1:
 		# print item['itma_collection_id']
 		iterate_collection_and_make_entries(item['itma_collection_id'],item['short_title'])
 
